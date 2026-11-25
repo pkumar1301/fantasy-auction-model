@@ -134,7 +134,12 @@ class WhatIf:
             rows = helpful + rest
         else:
             rows.sort(key=lambda r: -(r["my_pts_at_live"] or -99))
+        note = None
+        if not rows:
+            note = (f"No available {pos or ''} players have a live value of ${cap} or less. With this little "
+                    f"money, expect $1 end-of-draft players, who aren't priced on the board.").replace("  ", " ")
         return {
+            "note": note,
             "scenario": {"position": pos or "any", "need_categories": need,
                          "punt_categories": [self._cat(c) for c in punt_categories or []],
                          "budget_left": me.left, "open_spots": me.open, "price_cap": cap,
