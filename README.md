@@ -1,6 +1,8 @@
 # Fantasy Basketball Auction Model
 
 > Fork of [gaspardcheng/fantasy-auction-model](https://github.com/gaspardcheng/fantasy-auction-model). Team project, AI Edge Project 1 (15.071), with Gaspard Cheng, Caleb Drake, Elliot Forman and Prashant Kumar.
+>
+> **Project 2 (in progress):** a Claude GM assistant on top of this model, with what-if chat and a news agent. See [assistant/README.md](assistant/README.md).
 
 Predicts 2026-27 NBA per-game stats and games played, turns them into auction dollar values for a 14-team,
 9-category rotisserie league, and measures the gain in league standings by replaying a past season. Trained on

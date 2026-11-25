@@ -15,3 +15,8 @@ Project1_data_package/cache/
 Project1_data_package/*.pdf
 Project1_data_package/docs/download_report.md
 results/run_*.log
+
+# Project 2 assistant
+.env
+logs/
+assistant/eval/results_*.csv

@@ -1,0 +1,75 @@
+{
+ "me": 0,
+ "sales": [
+  {
+   "player": "Nikola Jokic",
+   "team": 1,
+   "price": 98
+  },
+  {
+   "player": "Shai Gilgeous-Alexander",
+   "team": 2,
+   "price": 90
+  },
+  {
+   "player": "Victor Wembanyama",
+   "team": 3,
+   "price": 85
+  },
+  {
+   "player": "Luka Doncic",
+   "team": 4,
+   "price": 80
+  },
+  {
+   "player": "Tyrese Maxey",
+   "team": 0,
+   "price": 62
+  },
+  {
+   "player": "Anthony Edwards",
+   "team": 5,
+   "price": 60
+  },
+  {
+   "player": "Donovan Mitchell",
+   "team": 6,
+   "price": 55
+  },
+  {
+   "player": "Scottie Barnes",
+   "team": 7,
+   "price": 52
+  },
+  {
+   "player": "Kawhi Leonard",
+   "team": 8,
+   "price": 40
+  },
+  {
+   "player": "Jamal Murray",
+   "team": 0,
+   "price": 48
+  },
+  {
+   "player": "Jalen Johnson",
+   "team": 9,
+   "price": 47
+  },
+  {
+   "player": "Karl-Anthony Towns",
+   "team": 10,
+   "price": 45
+  },
+  {
+   "player": "Cooper Flagg",
+   "team": 11,
+   "price": 41
+  },
+  {
+   "player": "Chet Holmgren",
+   "team": 12,
+   "price": 44
+  }
+ ]
+}

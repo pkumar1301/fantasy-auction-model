@@ -1,0 +1,25 @@
+{"id": "w01", "q": "Who should I target if I have $40 left, I'm weak in 3-pointers and only have an open spot at PF?", "tool": "find_targets", "ref": {"position": "PF", "need_categories": ["3PM"], "budget_left": 40, "open_spots": 1}}
+{"id": "w02", "q": "Best available center for my team right now?", "tool": "find_targets", "ref": {"position": "C"}}
+{"id": "w03", "q": "I need rebounds and blocks. Who are the best targets under $25?", "tool": "find_targets", "ref": {"need_categories": ["REB", "BLK"], "max_price": 25}}
+{"id": "w04", "q": "If I had $60 left and 3 spots, who's the best guard I could get?", "tool": "find_targets", "ref": {"position": "PG", "budget_left": 60, "open_spots": 3}}
+{"id": "w05", "q": "Who gives me the most value overall right now?", "tool": "find_targets", "ref": {}}
+{"id": "w06", "q": "Steals are my weak spot and I need an SF. Who should I go after?", "tool": "find_targets", "ref": {"position": "SF", "need_categories": ["STL"]}}
+{"id": "w07", "q": "What's my max bid on Trey Murphy III?", "tool": "player_card", "ref": {"name": "Trey Murphy III"}}
+{"id": "w08", "q": "Bidding on OG Anunoby is at $30. Keep going?", "tool": "bid_check", "ref": {"name": "OG Anunoby", "price": 30}}
+{"id": "w09", "q": "Jalen Duren is at $35, should I stop?", "tool": "bid_check", "ref": {"name": "Jalen Duren", "price": 35}}
+{"id": "w10", "q": "Compare Dyson Daniels and Desmond Bane for my team.", "tool": "compare_players", "ref": {"names": ["Dyson Daniels", "Desmond Bane"]}}
+{"id": "w11", "q": "What happens if I punt free throws? Who becomes more valuable?", "tool": "punt_scenario", "ref": {"categories": ["FT"]}}
+{"id": "w12", "q": "Should I punt assists? Show me the risers.", "tool": "punt_scenario", "ref": {"categories": ["AST"]}}
+{"id": "w13", "q": "What are my weakest categories so far?", "tool": "team_summary", "ref": {}}
+{"id": "w14", "q": "How much do I have left and which positions do I still need?", "tool": "team_summary", "ref": {}}
+{"id": "w15", "q": "Where am I projected to finish right now?", "tool": "team_summary", "ref": {}}
+{"id": "w16", "q": "Punting FT%, who's the best PF or C I can target?", "tool": "find_targets", "ref": {"position": "PF", "punt_categories": ["FT"]}}
+{"id": "w17", "q": "I'm weak in turnovers and FG%. Any cheap bigs under $15?", "tool": "find_targets", "ref": {"position": "C", "need_categories": ["TO", "FG"], "max_price": 15}}
+{"id": "w18", "q": "Is Ausar Thompson worth $10 to me?", "tool": "bid_check", "ref": {"name": "Ausar Thompson", "price": 10}}
+{"id": "w19", "q": "What's LeBron Jamesson's projected value?", "tool": "player_card", "ref": {"name": "LeBron Jamesson"}, "expect_refusal": true}
+{"id": "w20", "q": "Tell me about Naz Reid's projection and what I should pay.", "tool": "player_card", "ref": {"name": "Naz Reid"}}
+{"id": "n01", "q": "I'm thinking of bidding on Tyrese Haliburton. Anything in his injury history I should worry about?", "tool": "injury_history", "ref": {"player": "Tyrese Haliburton"}}
+{"id": "n02", "q": "If OG Anunoby has a calf strain and is out 2-3 weeks, how does that change what I should pay?", "tool": "news_impact", "ref": {"player": "OG Anunoby", "news_text": "calf strain, out 2-3 weeks"}}
+{"id": "n03", "q": "Suppose Trey Murphy III gets 15% more minutes after a trade. What's his value then?", "tool": "news_impact", "ref": {"player": "Trey Murphy III", "minutes_change_pct": 15}}
+{"id": "n04", "q": "Jalen Duren tore his ACL. What's he worth now?", "tool": "news_impact", "ref": {"player": "Jalen Duren", "news_text": "torn ACL"}}
+{"id": "n05", "q": "Any recent news on Kawhi Leonard?", "tool": "rss_news", "ref": {"player": "Kawhi Leonard"}, "live": true}
