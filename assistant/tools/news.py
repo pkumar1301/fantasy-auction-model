@@ -54,6 +54,21 @@ SEASON_RE = re.compile(
     r"(?:(?:rest|remainder)\s+of\s+(?:the\s+)?)?(?:season|year|campaign)|"
     r"(?:rest|remainder|balance)\s+of\s+(?:the\s+)?(?:season|year|campaign)|"
     r"miss(?:es|ing)?\s+(?:the\s+)?(?:entire\s+|whole\s+)?(?:season|year|campaign)")
+# words that look like injuries but aren't: "All-Star break", "back after the break", "is back in the lineup"
+NOT_INJURY_RE = re.compile(
+    r"(?:all[- ]star|olympic|winter|holiday|thanksgiving|christmas|new year'?s?|fiba|international|mid[- ]season)"
+    r"\s+break|\bthe\s+break\b|"
+    r"\b(?:is|be|been|was|were|are|comes?|came|coming|get|gets|got|getting|bring|brings|brought|welcome[sd]?)"
+    r"\s+(?:him\s+)?back\b|\bback\s+(?:from|after|in|on|to|for|with|soon|tonight|today|next|this|into|at|practicing|playing)\b|"
+    r"\bback[- ]to[- ]back\b|\bbreak(?:s|ing)?\s+(?:out|through|a record|the record)\b|\bbreakout\b")
+EVENT_TIMELINE_RE = re.compile(
+    r"\b(?:through|until|till|after|past|beyond)\s+(?:the\s+)?"
+    r"(?:all[- ]star(?:\s+break|\s+game|\s+weekend)?|olympic\s+break|trade deadline|playoffs|new year|christmas|"
+    r"thanksgiving|january|february|march|april|december|mid[- ]season|play[- ]in)")
+RULED_OUT_RE = re.compile(
+    r"\bruled out\b|\b(?:will|set to|expected to|going to|to)\s+miss\b|\bwon'?t play\b|\bwill sit\b|"
+    r"\bsit(?:s|ting)? out\b|\blisted as out\b|\bout (?:tonight|today|monday|tuesday|wednesday|thursday|friday|"
+    r"saturday|sunday)\b|\b(?:doesn'?t|didn'?t|won'?t|will not) (?:practice|play|suit up)\b|\b\w+ straight game")
 OPEN_ENDED_RE = re.compile(r"indefinitely|no timetable|without a timetable|no timeline|out until further notice")
 @lru_cache(maxsize=None)
 def _keyword_tables():
@@ -106,7 +121,7 @@ def classify_injury(text: str) -> dict:
     """Body region, injury type, and how many games that usually costs (historical median and 90th pct)."""
     regions, types = _keyword_tables()
     # remove timeline phrases before matching, so "rest of the season" doesn't read as rest (load management)
-    body = SEASON_RE.sub(" ", text.lower())
+    body = NOT_INJURY_RE.sub(" ", SEASON_RE.sub(" ", text.lower()))
     region, typ = _match(body, regions), _match(body, types)
     tab = pd.read_csv(ABSENCE_CSV)
     hist = None
@@ -125,9 +140,13 @@ def classify_injury(text: str) -> dict:
             hist = {"basis": f"all {val} injuries (episode-weighted)", "episodes": int(n), "median": round(med, 1),
                     "p90": float((r.p90 * r.episodes).sum() / n)}
     explicit, phrase = _explicit_games(text)
-    open_ended = bool(OPEN_ENDED_RE.search(text.lower())) and explicit is None
+    low = text.lower()
+    open_ended = bool(OPEN_ENDED_RE.search(low)) and explicit is None
+    ev = EVENT_TIMELINE_RE.search(low) if explicit is None else None
     return {"region": region, "type": typ, "historical_games_missed": hist,
-            "stated_timeline": phrase, "stated_games": explicit, "open_ended": open_ended}
+            "stated_timeline": phrase, "stated_games": explicit, "open_ended": open_ended,
+            "unparsed_timeline": ev.group(0) if ev else None,
+            "ruled_out_next_game": bool(RULED_OUT_RE.search(low))}
 
 
 # ---------------------------------------------------------------------- sources
@@ -202,9 +221,14 @@ def _parse_rss(xml_text: str, source: str):
             pub = parsedate_to_datetime(g("pubDate")).astimezone(timezone.utc)
         except Exception:
             pub = None
-        pub_src = (it.findtext("source") or "").strip()
-        items.append({"source": f"{pub_src} (via {source})" if pub_src else source, "title": g("title"), "summary": re.sub(r"<[^>]+>", "", g("description"))[:600],
-                      "url": g("link"), "published": pub.isoformat() if pub else None})
+        src_el = it.find("source")
+        pub_src = (src_el.text or "").strip() if src_el is not None else ""
+        pub_site = src_el.get("url") if src_el is not None else None
+        items.append({"source": f"{pub_src} (via {source})" if pub_src else source, "publisher_site": pub_site,
+                      "title": g("title"), "summary": re.sub(r"<[^>]+>", "", g("description"))[:600],
+                      "url": g("link"), "published": pub.isoformat() if pub else None,
+                      "url_note": "Google News redirect link; open in a browser, or search the title on "
+                                  "publisher_site" if "news.google.com" in g("link") else None})
     return items
 
 
@@ -238,7 +262,7 @@ def rss_news(player: str, days: int = 14, feeds: dict | None = None) -> dict:
                 in_title = _mentions(it["title"], player)
                 if not (in_title or _mentions(it["summary"], player)):
                     continue
-                key = norm_name(it["title"])[:80]
+                key = re.sub(r"\W+", " ", it["title"].lower()).strip()[:100]  # keep digits (scores, dates)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -247,14 +271,21 @@ def rss_news(player: str, days: int = 14, feeds: dict | None = None) -> dict:
         except Exception as e:
             errors[name] = type(e).__name__
     found.sort(key=lambda x: (x["name_in"] == "headline", x["published"] or ""), reverse=True)
-    headline = sum(1 for x in found if x["name_in"] == "headline")
+    heads = [x for x in found if x["name_in"] == "headline"]
+    summ = [x for x in found if x["name_in"] != "headline"]
+    keep_s = min(3, len(summ))
+    found = heads[: 15 - keep_s] + summ[:keep_s]          # up to 3 slots kept for passing mentions
+    headline = len(heads)
     note = None
     if not found:
         note = "No feed items mention this player in the window. That's thin coverage, not proof of no news: try search_news."
-    elif headline == 0:
+    elif headline == 0 and summ:
         note = "He appears only in summaries, which are often about someone else. Treat as no direct news; try search_news."
-    return {"player": player, "days": days, "items_scanned_by_feed": scanned, "items": found[:15],
-            "headline_matches": headline, "feeds_failed": errors or None, "note": note}
+    return {"player": player, "days": days, "items_scanned_by_feed": scanned, "items": found,
+            "headline_matches": headline, "summary_only_matches": len(summ),
+            "shown": len(found), "newest_first": True,
+            "oldest_shown": min((x["published"] for x in found if x["published"]), default=None),
+            "feeds_failed": errors or None, "note": note}
 
 
 def search_news(query: str, days: int = 30, max_results: int = 8) -> dict:
@@ -329,11 +360,19 @@ def news_impact(board: Board, player: str, news_text: str = "", games_missed: fl
             f"no timetable given, so the 90th percentile for {info['historical_games_missed']['basis']}"
     elif info.get("historical_games_missed"):
         est, basis = info["historical_games_missed"]["median"], \
-            f"historical median for {info['historical_games_missed']['basis']}"
+            (f"historical median for {info['historical_games_missed']['basis']} (a whole absence counted from its "
+             f"start; games he has already missed are part of it)")
     elif info.get("open_ended"):
         est, basis = 20.0, "no timetable and no injury type recognized: assumed 20 games (about 6 weeks)"
+    elif info.get("unparsed_timeline"):
+        est, basis = 0.0, (f"timeline '{info['unparsed_timeline']}' can't be converted to games here; "
+                           f"call again with games_missed set (count his team's games until then)")
+    elif info.get("ruled_out_next_game"):
+        est, basis = 1.0, ("ruled out, no injury or timeline in the text: counted as 1 game. Check "
+                           "latest_injury_report for the official reason and pass it as news_text for a fuller estimate")
     else:
-        est, basis = 0.0, "no injury detected in the text"
+        est, basis = 0.0, ("no injury or timeline found in this text. That's not the same as no impact: check "
+                           "latest_injury_report and pass the official reason as news_text")
     new_gp = max(0.0, p["exp_gp"] - est)
 
     data = {**board.data, "players": [dict(x) for x in board.data["players"]]}
@@ -354,6 +393,8 @@ def news_impact(board: Board, player: str, news_text: str = "", games_missed: fl
     res = {"player": p["name"], "injury": info or None, "games_missed_estimate": round(est, 1),
            "estimate_basis": basis, "minutes_change_pct": minutes_change_pct, "before": before, "after": after,
            "change_in_live_value": after["live"] - before["live"]}
+    if info.get("unparsed_timeline") and games_missed is None:
+        res["needs_games_missed"] = True
     hist = (info or {}).get("historical_games_missed")
     if hist and games_missed is None and info.get("stated_games") is None and not info.get("open_ended"):
         res["range_note"] = (f"Historical median {hist['median']:.0f} games, 90th percentile {hist['p90']:.0f} "

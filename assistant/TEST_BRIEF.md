@@ -40,7 +40,7 @@ python3 -m assistant.tests.test_eval_harness
 | Test | Expected (as of commit on 2026-11-25) |
 |---|---|
 | test_engine_parity | `empty 60/60`, `mid-auction 60/60`, `punt FT 60/60`, `PASS` |
-| test_tools | `73/73 passed` |
+| test_tools | `86/86 passed` |
 | test_agent_loop | `PASS` |
 | test_mcp_server | `16/16 passed` |
 | test_eval_harness | `6/6 passed` |

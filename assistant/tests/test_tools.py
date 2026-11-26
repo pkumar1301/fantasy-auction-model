@@ -174,6 +174,49 @@ def main():
           "injury history: Haliburton 2025-26 Achilles absence")
     check(news.injury_history("Nobody Atall")["entries"] == [], "injury history: unknown player is empty, not an error")
 
+    # --- round-2 regressions (Muse, 2026-11-25)
+    for text in ["out through the All-Star break", "out until after the All-Star break",
+                 "out through the Olympic break", "back after the break"]:
+        r = news.news_impact(b, "Jayson Tatum", text)
+        check(r["games_missed_estimate"] == 0 and (r["injury"] or {}).get("type") != "Fracture",
+              f"R2-1 '{text}' is not a fracture")
+    check(news.news_impact(b, "Jayson Tatum", "out through the All-Star break").get("needs_games_missed"),
+          "R2-1 event timeline asks for games_missed instead of guessing")
+    check(news.classify_injury("suffered a break in his left wrist")["type"] == "Fracture", "R2-1 a real break still counts")
+    check(news.classify_injury("lower back spasms")["region"] == "Back / core", "R2-1 'back' as a body part still counts")
+    for text in ["OG Anunoby Set to Miss Third Straight Game", "OG Anunoby Injury: Ruled out for Wednesday"]:
+        r = news.news_impact(b, "OG Anunoby", text)
+        check(r["games_missed_estimate"] == 1 and "latest_injury_report" in r["estimate_basis"], f"R2-2 '{text}' -> 1 game + check report")
+    r = news.news_impact(b, "OG Anunoby", "Knicks Announce Major OG Anunoby Injury Update")
+    check(r["games_missed_estimate"] == 0 and "not the same as no impact" in r["estimate_basis"], "R2-2 vague update says unknown, not no impact")
+    check("already missed" in news.news_impact(b, "OG Anunoby", "calf strain")["estimate_basis"], "R2-2 median labelled as whole episode")
+
+    def fake_get(url, **kw):
+        if "news.google.com" in url:
+            body = "".join(f"<item><title>OG Anunoby update {i}</title><link>https://news.google.com/rss/articles/x{i}</link>"
+                           f"<pubDate>Tue, 24 Nov 2026 1{i % 10}:00:00 GMT</pubDate><source url='https://sny.tv'>SNY</source></item>"
+                           for i in range(20))
+        else:
+            body = ("<item><title>Knicks notes</title><description>Coach on OG Anunoby and others</description>"
+                    "<link>https://espn.test/k</link><pubDate>Tue, 24 Nov 2026 12:00:00 GMT</pubDate></item>")
+        return type("R", (), {"text": f"<rss><channel>{body}</channel></rss>", "raise_for_status": lambda self: None})()
+    real_get, real_now = news._get, news.datetime
+    news._get = fake_get
+
+    class _DT(news.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return news.datetime(2026, 11, 25, tzinfo=tz)
+    news.datetime = _DT
+    try:
+        r = news.rss_news("OG Anunoby", days=14)
+    finally:
+        news._get, news.datetime = real_get, real_now
+    names_in = [x["name_in"] for x in r["items"]]
+    check(r["headline_matches"] == 20 and r["summary_only_matches"] >= 1 and "summary only" in names_in and len(r["items"]) == 15,
+          "R2-3 passing mentions keep a slot even with 20 headline matches")
+    check(r["items"][0]["publisher_site"] == "https://sny.tv" and r["items"][0]["url_note"], "R2-4 publisher site + note on Google links")
+
     # --- RSS parsing and name matching (no network)
     xml = ("<rss><channel><item><title>OG Anunoby out with calf strain</title><description>&lt;p&gt;Knicks F"
            "&lt;/p&gt;</description><link>https://x.test/a</link><pubDate>Tue, 24 Nov 2026 18:00:00 GMT</pubDate>"

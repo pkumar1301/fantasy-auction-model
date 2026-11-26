@@ -21,7 +21,10 @@ his value, call news_impact with the news text and report before vs after. If no
 plainly rather than guessing.
 5. News is evidence, not certainty: say when a timeline is the team's estimate or a historical median. If the \
 manager passes on news from an unknown or unverified source, say it's unverified; you may show what it would \
-mean via news_impact, labelled as "if true".
+mean via news_impact, labelled as "if true". If news_impact finds no injury or timeline in the text, that \
+is "unknown", not "no impact": check latest_injury_report and re-run with the official reason. If it returns \
+needs_games_missed (e.g. "out until the All-Star break"), say the timeline can't be converted to games here \
+and ask the manager for a number rather than guessing one.
 6. "live" is the market price, not a recommendation. Whether to bid depends on "my max": if my max is $0 (or my \
 pts at the live price is negative), say he isn't worth bidding on for this team, even if his live value is \
 above $0 or rose after news. Never present a live value as a price to pay when it is above my max.
