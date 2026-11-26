@@ -20,7 +20,9 @@ This is testing, not development.
 ```bash
 git clone -b project2-assistant https://github.com/pkumar1301/fantasy-auction-model
 cd fantasy-auction-model
-python3 -m pip install -r requirements.txt -r assistant/requirements.txt
+python3 -m venv .venv && . .venv/bin/activate
+python3 -m pip install -r assistant/requirements.txt   # the assistant only needs these 4 packages;
+                                                # requirements.txt (torch etc.) is only for rebuilding Project 1
 cp assistant/.env.example .env          # add ANTHROPIC_API_KEY; optionally TAVILY_API_KEY
 node --version                          # needed for the parity test
 ```
@@ -36,7 +38,7 @@ python3 -m assistant.tests.test_agent_loop
 | Test | Expected (as of commit on 2026-11-25) |
 |---|---|
 | test_engine_parity | `empty 60/60`, `mid-auction 60/60`, `punt FT 60/60`, `PASS` |
-| test_tools | `63/63 passed` |
+| test_tools | `73/73 passed` |
 | test_agent_loop | `PASS` |
 
 Any difference is a bug. Report the failing line.
@@ -55,7 +57,9 @@ python3 -m assistant.cli --tool search_news --args '{"query":"Ja Morant injury u
 
 For each, check:
 - [ ] it returns without crashing
-- [ ] `feeds_failed` lists which feeds, if any, were unreachable or returned errors
+- [ ] `feeds_failed` lists which feeds, if any, were unreachable or returned errors;
+      `items_scanned_by_feed` shows how many items each feed had (Google News search is per player)
+- [ ] items with the name only in the summary are marked `summary only` and listed after headline matches
 - [ ] every item has a source, a title, a URL and a published date
 - [ ] items really mention the player (open 3 URLs and check)
 - [ ] no item is older than the `days` window

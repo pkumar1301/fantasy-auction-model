@@ -124,9 +124,19 @@ def main():
         "will miss 5 games with a sore back": ("Back / core", None, 5.0),
         "out three weeks, hamstring strain": ("Hamstring / thigh", "Strain", 10.5),
     }
+    cases.update({
+        "out for season": (None, None, 82.0),
+        "done for the season": (None, None, 82.0),
+        "will miss the rest of the season": (None, None, 82.0),   # not 'Management' via the word "rest"
+        "out for the remainder of the season": (None, None, 82.0),
+        "ACL tear, out for season": ("Knee", "Tear / rupture", 82.0),
+        "Rest": (None, "Management", None),                        # load management still recognized
+    })
     for text, (reg, typ, g) in cases.items():
         r = classify_injury(text)
-        ok = r["region"] == reg and (typ is None or r["type"] == typ) and r["stated_games"] == g
+        ok = r["region"] == reg and r["type"] == typ if text in ("will miss the rest of the season", "Rest") else \
+            r["region"] == reg and (typ is None or r["type"] == typ)
+        ok = ok and r["stated_games"] == g
         check(ok, f"classify '{text}' -> {r['region']} / {r['type']} / {r['stated_games']}")
     check(classify_injury("Ankle sprain")["historical_games_missed"]["median"] == 4.0, "ankle sprain median = 4 games")
 
@@ -142,6 +152,11 @@ def main():
     imp3 = news.news_impact(b, "Trey Murphy III", minutes_change_pct=15)
     check(imp3["after"]["z_per_game"] > imp3["before"]["z_per_game"] and imp3["after"]["live"] > imp3["before"]["live"],
           "news_impact: more minutes raises value")
+    imp5 = news.news_impact(b, "Jayson Tatum", "BREAKING: Tatum out for season")
+    check(imp5["games_missed_estimate"] == 82 and imp5["after"]["live"] == 0, "news_impact: 'out for season' -> 82 games, $0")
+    imp6 = news.news_impact(b, "OG Anunoby", "out indefinitely with a knee injury")
+    check("90th percentile" in imp6["estimate_basis"] and imp6["games_missed_estimate"] > 20,
+          "news_impact: 'indefinitely' uses the 90th percentile, not the median")
     imp4 = news.news_impact(b, "Jalen Duren", "torn ACL", games_missed=200)
     check(imp4["after"]["exp_games"] == 0 and imp4["after"]["live"] == 0, "news_impact: games can't go below 0")
     check("error" in news.news_impact(b, "LeBron Jamesson", "sprain"), "news_impact: unknown player")
@@ -167,6 +182,11 @@ def main():
     check(items[0]["summary"] == "Knicks F" and items[0]["published"].startswith("2026-11-24"), "RSS parse strips HTML, reads date")
     check(news._mentions("O.G. Anunoby questionable", "OG Anunoby") and not news._mentions("Anthony Davis", "Anthony Edwards"),
           "news name matching")
+    gn = news.player_search_feed("OG Anunoby")
+    check(gn.startswith("https://news.google.com/rss/search?q=%22OG+Anunoby%22+NBA"), "per-player news search feed URL")
+    gx = ("<rss><channel><item><title>Anunoby back at practice - SNY</title><link>https://n.test</link>"
+          "<pubDate>Tue, 24 Nov 2026 18:00:00 GMT</pubDate><source url='https://sny.tv'>SNY</source></item></channel></rss>")
+    check(news._parse_rss(gx, "Google News search")[0]["source"] == "SNY (via Google News search)", "publisher read from news search feed")
     saved = {k: news.os.environ.pop(k, None) for k in ("TAVILY_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY")}
     check("error" in news.search_news("Anunoby"), "search_news without a key returns a clear error")
     for k, v in saved.items():

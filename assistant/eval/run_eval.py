@@ -8,9 +8,10 @@ Every question starts from the same mid-auction state (assistant/eval/mid_auctio
 my team has Maxey $62 and Murray $48). Checks per answer:
   right_tool      the expected tool was called
   top_pick        for find_targets: the engine's #1 target is named in the answer
-  dollars_ok      every $ figure in the answer appears in that turn's tool results (within $1)
+  dollars_ok      every $ figure in the answer is a money field in that turn's tool results, or was in the
+                  question itself (within $1)
   names_ok        every board player named in the answer appears in that turn's tool results
-  refusal_ok      for a made-up player: says he isn't on the board and gives no prices
+  refusal_ok      for a made-up player: says he isn't on the board (close names' real prices are fine)
 Results: assistant/eval/results_<time>.csv plus a printed summary with token totals.
 Limits: one league state, one run per question (answers can vary between runs), English questions written
 by the team, not by real managers.
@@ -32,8 +33,15 @@ def dollars(text):
     return [int(x) for x in re.findall(r"\$\s?(\d{1,3})(?!\d)", text)]
 
 
+MONEY_KEYS = ("live", "base", "my_max", "price", "budget_left", "max_single_bid", "sold_price", "price_cap",
+              "base_now", "base_if_punt", "live_now", "live_if_punt", "change", "money_left", "league_money_left",
+              "change_in_live_value", "bargain")
+
+
 def numbers_in(payload):
-    return {round(float(x)) for x in re.findall(r"-?\d+(?:\.\d+)?", payload)}
+    """Dollar values in the tool outputs: only fields that hold money, not z-scores, games or ranks."""
+    pat = r'"(?:' + "|".join(MONEY_KEYS) + r')":\s*(-?\d+(?:\.\d+)?)'
+    return {abs(round(float(x))) for x in re.findall(pat, payload)}
 
 
 def named_players(text, names):
@@ -67,7 +75,7 @@ def main():
         tok_in += r["usage"]["input_tokens"]
         tok_out += r["usage"]["output_tokens"]
         outs = " ".join(c.get("output", "") for c in r["tool_calls"])
-        nums = numbers_in(outs)
+        nums = numbers_in(outs) | {int(x) for x in re.findall(r"\$\s?(\d{1,3})", q["q"])}
         ans = r["answer"]
         row = {"id": q["id"], "question": q["q"], "tools": "|".join(str(c["tool"]) for c in r["tool_calls"]),
                "right_tool": any(c["tool"] == q["tool"] for c in r["tool_calls"])}
@@ -80,8 +88,9 @@ def main():
         if q["tool"] == "find_targets" and ref.get("targets"):
             row["top_pick"] = norm_name(ref["targets"][0]["name"]) in norm_name(ans)
         if q.get("expect_refusal"):
+            # says he isn't on the board; quoting a close name's real price (from a tool) is allowed
             row["refusal_ok"] = bool(re.search(r"not (on|in) the board|couldn'?t find|no player|not find|"
-                                               r"doesn'?t (appear|exist)|isn'?t on", ans, re.I)) and not dollars(ans)
+                                               r"doesn'?t (appear|exist)|isn'?t on", ans, re.I)) and row["dollars_ok"]
         row.update(answer=ans, input_tokens=r["usage"]["input_tokens"], output_tokens=r["usage"]["output_tokens"],
                    seconds=r["seconds"])
         rows.append(row)

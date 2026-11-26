@@ -16,7 +16,9 @@ Two modules so far:
 ## Setup
 
 ```bash
-python3 -m pip install -r requirements.txt -r assistant/requirements.txt
+python3 -m venv .venv && . .venv/bin/activate
+python3 -m pip install -r assistant/requirements.txt   # the assistant only needs these 4 packages;
+                                                # requirements.txt (torch etc.) is only for rebuilding Project 1
 cp assistant/.env.example .env        # then add your ANTHROPIC_API_KEY (and optionally a search key)
 ```
 
@@ -78,5 +80,7 @@ also includes one made-up player to check that the agent says he isn't on the bo
   depend on the provider.
 * Max bid is found by the board's 9-step search, so it can land $1 below the true break-even price.
   Kept as-is so the chat matches the board.
-* Live sources (injury-report PDF, feeds, search APIs) are written to their public formats but haven't yet
-  been run against the live sites from this repo. Run `n05` in the eval to confirm.
+* Live sources were checked by a separate test agent (Muse) on 2026-11-25: the official injury-report PDF
+  parsed correctly (5/5 rows checked by hand), and the feeds were reachable. Free feeds alone had thin
+  coverage of star players, so `rss_news` now also runs a per-player Google News search and reports items
+  scanned per feed. The Google News feed and the search APIs haven't yet been checked against the live sites.

@@ -28,7 +28,12 @@ def main(argv=None):
 
     if a.tool:
         from .agent import Toolbox
-        print(json.dumps(Toolbox(board).call(a.tool, json.loads(a.args)), indent=2, default=str))
+        try:
+            out = Toolbox(board).call(a.tool, json.loads(a.args))
+        except Exception as e:  # same shape the agent sees, instead of a traceback
+            print(json.dumps({"error": f"{type(e).__name__}: {e}"}, indent=2))
+            return 1
+        print(json.dumps(out, indent=2, default=str))
         return 0
 
     from .agent import Agent
