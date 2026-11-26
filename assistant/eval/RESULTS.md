@@ -1,5 +1,10 @@
 # Evaluation results
 
+## 2026-11-25 (late): check run after merging the round-2 fixes (commit 4e65f36)
+
+1 run each, same setup. 24 questions: right_tool 24/24, dollars_ok 24/24, names_ok 24/24, top_pick 8/8,
+refusal_ok 1/1. Conversations: 10/10. The new news rules didn't change any what-if behaviour.
+
 ## 2026-11-25 (evening): 3 runs each, commit 2907dca (before the round-2 fixes)
 
 Same setup as below (Claude Code on a subscription, `sonnet`, mid-auction state, live items skipped).
