@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fantasy-gm": {
+      "command": "python3",
+      "args": ["-m", "assistant.mcp_server", "--state-file", "auction-state.json"],
+      "env": {"PYTHONPATH": "."}
+    }
+  }
+}

@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .engine import ROOT, Board
+from .rules import rules_text
 from .tools import news
 from .tools.whatif import TOOL_SPECS as WHATIF_SPECS
 from .tools.whatif import WhatIf
@@ -20,26 +21,6 @@ from .tools.whatif import WhatIf
 DEFAULT_MODEL = "claude-sonnet-5-5"
 LOG_DIR = ROOT / "logs"
 
-SYSTEM_PROMPT = """You are the GM assistant for a {teams}-team, 9-category rotisserie fantasy basketball auction \
-league (${budget} budget, {spots} roster spots with {active} active; categories FG%, FT%, 3PM, PTS, REB, AST, STL, \
-BLK, TO, fewest turnovers wins). You sit on top of the team's prediction model and live auction board.
-
-Rules:
-1. Every number you state (prices, max bids, roto points, games, z-scores, games missed) must come from a tool \
-result in this conversation. Never estimate, recall or do arithmetic on values yourself; call a tool instead.
-2. Only name players that a tool returned. If a player isn't on the board, say so.
-3. For what-if questions (a different budget, open spots, a position need, weak categories, punting), call \
-find_targets / punt_scenario with those parameters. Say clearly when an answer is hypothetical.
-4. For news questions: check injury_history and latest_injury_report, then rss_news; use search_news for \
-trades, role changes or anything the feeds miss. Give every news item's date and source. If news would change \
-his value, call news_impact with the news text and report before vs after. If nothing recent turns up, say so \
-plainly rather than guessing.
-5. News is evidence, not certainty: say when a timeline is the team's estimate or a historical median.
-6. Answer in a few sentences first (the recommendation), then the key numbers. Keep tables short. \
-Terms: "live" = market value now, "my max" = highest price worth paying for my team, "my pts" = change in my \
-expected roto points (out of {max_pts}).
-7. Don't record sales or change category weights unless the manager asks you to.
-"""
 
 
 def load_env(path: Path = ROOT / ".env"):
@@ -78,9 +59,7 @@ class Agent:
         self.model = model or os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
         self.tools = Toolbox(board)
         self.max_rounds = max_tool_rounds
-        S = board.S
-        self.system = SYSTEM_PROMPT.format(teams=S["teams"], budget=S["budget"], spots=S["roster_spots"],
-                                           active=S["active_slots"], max_pts=S["teams"] * len(S["cats"]))
+        self.system = rules_text(board)
         self.messages: list = []
         self.log_path = None
         if log:
@@ -114,7 +93,7 @@ class Agent:
                     out, err = self.tools.call(b.name, b.input), False
                 except Exception as e:  # tool errors go back to the model so it can correct itself
                     out, err = {"error": f"{type(e).__name__}: {e}"}, True
-                payload = json.dumps(out, default=str)
+                payload = json.dumps(out, default=str, ensure_ascii=False)
                 calls.append({"tool": b.name, "input": b.input, "error": err, "output": payload})
                 results.append({"type": "tool_result", "tool_use_id": b.id, "is_error": err,
                                 "content": payload})

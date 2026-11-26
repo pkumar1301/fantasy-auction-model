@@ -4,7 +4,7 @@ A Claude agent on top of the Project 1 auction model. The manager asks in plain 
 calling tools that run the board's own valuation code, so every price, max bid and roto-point figure matches
 the auction board (`docs/index.html`).
 
-Two modules so far:
+Two modules so far, usable with an API key (`agent.py`) or a Claude subscription (`mcp_server.py`):
 
 * **What-if chat** (Elliot's use case 1): "I have $40 left, I'm weak in threes and only have a PF spot open.
   Who should I target?", "What if I punt FT%?", "Anunoby is at $30, keep bidding?"
@@ -34,6 +34,48 @@ python3 -m assistant.cli --tool find_targets --args '{"position":"PF","need_cate
 `--tool` calls one tool directly with no LLM and no key, which is handy for checking numbers. In chat,
 `/save file.json` writes the auction state, which the board can import.
 
+## Use it with a Claude subscription (no API key)
+
+`assistant/mcp_server.py` serves the same 15 tools over MCP (standard library only). Claude does the
+reasoning and the server supplies every number. The auction state is kept in `auction-state.json`
+(gitignored), so recorded sales survive restarts.
+
+**Claude Code** (in the repo folder, with the venv active so `python3` has pandas):
+
+```bash
+claude                                   # approve the "fantasy-gm" server from .mcp.json when asked
+# for exactly the assistant's behaviour (its rules, no coding tools):
+python3 -m assistant.mcp_server --print-rules > /tmp/gm_rules.txt
+claude --system-prompt-file /tmp/gm_rules.txt --tools "" --allowedTools mcp__fantasy-gm
+```
+
+**Claude desktop app:** Settings → Developer → Edit Config, then add (with your absolute paths):
+
+```json
+{
+  "mcpServers": {
+    "fantasy-gm": {
+      "command": "/ABSOLUTE/PATH/fantasy-auction-model/.venv/bin/python",
+      "args": ["-m", "assistant.mcp_server", "--state-file", "/ABSOLUTE/PATH/fantasy-auction-model/auction-state.json"],
+      "env": {"PYTHONPATH": "/ABSOLUTE/PATH/fantasy-auction-model"}
+    }
+  }
+}
+```
+
+Restart the app. The server sends its rules as MCP instructions. For the closest match to the tested
+behaviour, also paste the output of `python3 -m assistant.mcp_server --print-rules` into a Claude Project's
+instructions and chat inside that Project.
+
+**Evaluate on the subscription** (needs the `claude` CLI, signed in):
+
+```bash
+python3 -m assistant.eval.run_eval --backend claude-code --model sonnet --skip-live      # 24 questions
+python3 -m assistant.eval.run_conversations --backend claude-code --model sonnet --runs 3 # Part D scripts
+```
+
+Results so far: `assistant/eval/RESULTS.md`.
+
 ## How it works
 
 ```
@@ -60,6 +102,8 @@ manager question
 ```bash
 python3 -m assistant.tests.test_engine_parity   # Python engine = board JavaScript (needs node)
 python3 -m assistant.tests.test_agent_loop      # agent loop with a fake Claude client (offline)
+python3 -m assistant.tests.test_mcp_server      # MCP server over stdio, state file persistence (offline)
+python3 -m assistant.tests.test_eval_harness    # Claude Code stream parsing + conversation checks (offline)
 python3 -m assistant.eval.run_eval --skip-live  # 24 questions scored against the engine (needs API key)
 ```
 

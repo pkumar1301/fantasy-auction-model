@@ -88,7 +88,7 @@ class WhatIf:
         order = sorted(active, key=lambda c: me.pts[c])
         have = {pos for r in me.roster for pos in _positions(r[0])}
         out = {
-            "team": me.name, "budget_left": me.left, "open_spots": me.open, "max_single_bid": me.max_bid,
+            "team": me.name, "spent": me.spent, "budget_left": me.left, "open_spots": me.open, "max_single_bid": me.max_bid,
             "roster": [{"name": r[0]["name"], "pos": r[0]["pos"], "price": r[1]} for r in me.roster],
             "positions_not_covered": [x for x in POSITIONS if x not in have],
             "expected_roto_points_by_category": by_cat,
@@ -183,8 +183,14 @@ class WhatIf:
             verdict = "Undervalued: keep bidding."
         else:
             verdict = "Close to your max."
-        return {"name": p["name"], "price": price, "my_max": mx, "live": round(p["live"]),
-                "my_pts_at_price": _r(d), "verdict": verdict}
+        me = self.b.me
+        out = {"name": p["name"], "price": price, "my_max": mx, "live": round(p["live"]),
+               "my_pts_at_price": _r(d), "verdict": verdict}
+        if d is not None:
+            out.update(budget_after=me.left - price, spots_after=me.open - 1,
+                       max_single_bid_after=(me.left - price) - (me.open - 2) if me.open > 1 else 0,
+                       below_my_max_by=mx - price)
+        return out
 
     def compare_players(self, names):
         return {"players": [self.player_card(n) for n in names]}
@@ -237,9 +243,10 @@ TOOL_SPECS = [
                     "covered, expected roto points per category, weakest/strongest categories, projected rank.",
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "find_targets",
-     "description": "Rank available players for my team. Can answer hypotheticals: a position I need, "
-                    "categories I'm weak in, categories to punt, a different budget or number of open spots, "
-                    "or a price cap. " + _CATS_DESC,
+     "description": "Rank available players for my team by my roto-point gain at the live price (which already "
+                    "accounts for my weak categories). Can answer hypotheticals: a position I need, categories "
+                    "the manager says they need (need_categories: only when asked), categories to punt, a "
+                    "different budget or number of open spots, or a price cap. " + _CATS_DESC,
      "input_schema": {"type": "object", "properties": {
          "position": {"type": "string", "description": "PG, SG, SF, PF, C, or UTIL/ANY"},
          "need_categories": {"type": "array", "items": {"type": "string"}},

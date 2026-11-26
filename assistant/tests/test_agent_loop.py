@@ -57,6 +57,7 @@ def main():
     check(results[1]["is_error"] is True, "is_error flag set on the failed tool")
     check(r["usage"] == {"input_tokens": 400, "output_tokens": 80}, "token usage summed")
     check("14-team" in fake.calls[0]["system"][0]["text"], "system prompt filled from board settings")
+    check("my max is $0" in fake.calls[0]["system"][0]["text"], "no-bid rule (my max $0) in system prompt")
     check(len(fake.calls[0]["tools"]) == 15, "all 15 tools offered")
     print("PASS" if ok else "FAIL")
     return 0 if ok else 1

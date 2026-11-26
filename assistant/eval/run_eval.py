@@ -1,6 +1,7 @@
 """Score the assistant on the question set (assistant/eval/questions.jsonl).
 
   python3 -m assistant.eval.run_eval              all questions (needs ANTHROPIC_API_KEY; live ones need network)
+  python3 -m assistant.eval.run_eval --backend claude-code   same, on a Claude subscription (no API key)
   python3 -m assistant.eval.run_eval --skip-live  skip questions that need live news feeds
   python3 -m assistant.eval.run_eval --only w01,w07
 
@@ -23,19 +24,21 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from assistant.agent import Agent, Toolbox
+from assistant.agent import Toolbox
+from assistant.eval.backends import make_backend
 from assistant.engine import Board, load_board_data, norm_name
 
 HERE = Path(__file__).resolve().parent
 
 
 def dollars(text):
-    return [int(x) for x in re.findall(r"\$\s?(\d{1,3})(?!\d)", text)]
+    return [int(x.replace(",", "")) for x in re.findall(r"\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?!\d|,\d{3})", text)]
 
 
 MONEY_KEYS = ("live", "base", "my_max", "price", "budget_left", "max_single_bid", "sold_price", "price_cap",
               "base_now", "base_if_punt", "live_now", "live_if_punt", "change", "money_left", "league_money_left",
-              "change_in_live_value", "bargain")
+              "change_in_live_value", "bargain", "spent", "budget_after", "max_single_bid_after",
+              "below_my_max_by")
 
 
 def numbers_in(payload):
@@ -54,6 +57,8 @@ def main():
     ap.add_argument("--skip-live", action="store_true")
     ap.add_argument("--only")
     ap.add_argument("--model")
+    ap.add_argument("--backend", default="api", choices=["api", "claude-code"],
+                    help="api = Claude API key; claude-code = Claude subscription via the MCP server")
     a = ap.parse_args()
     qs = [json.loads(l) for l in (HERE / "questions.jsonl").read_text().splitlines() if l.strip()]
     if a.only:
@@ -65,13 +70,17 @@ def main():
     data = load_board_data()
     all_names = [p["name"] for p in data["players"]]
     rows, tok_in, tok_out = [], 0, 0
+    backend = make_backend(a.backend, a.model)
     for q in qs:
-        board = Board(data, state)
         try:
             ref = Toolbox(Board(data, state)).call(q["tool"], q["ref"])
         except Exception as e:
             ref = {"error": str(e)}
-        r = Agent(board, model=a.model).ask(q["q"])
+        sess = backend.session(state)
+        try:
+            r = sess.ask(q["q"])
+        finally:
+            sess.close()
         tok_in += r["usage"]["input_tokens"]
         tok_out += r["usage"]["output_tokens"]
         outs = " ".join(c.get("output", "") for c in r["tool_calls"])
@@ -89,7 +98,7 @@ def main():
             row["top_pick"] = norm_name(ref["targets"][0]["name"]) in norm_name(ans)
         if q.get("expect_refusal"):
             # says he isn't on the board; quoting a close name's real price (from a tool) is allowed
-            row["refusal_ok"] = bool(re.search(r"not (on|in) the board|couldn'?t find|no player|not find|"
+            row["refusal_ok"] = bool(re.search(r"not (on|in) the board|no [^.]{0,40} on the board|couldn'?t find|no player|not find|"
                                                r"doesn'?t (appear|exist)|isn'?t on", ans, re.I)) and row["dollars_ok"]
         row.update(answer=ans, input_tokens=r["usage"]["input_tokens"], output_tokens=r["usage"]["output_tokens"],
                    seconds=r["seconds"])

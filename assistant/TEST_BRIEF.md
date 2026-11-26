@@ -33,6 +33,8 @@ node --version                          # needed for the parity test
 python3 -m assistant.tests.test_engine_parity
 python3 -m assistant.tests.test_tools
 python3 -m assistant.tests.test_agent_loop
+python3 -m assistant.tests.test_mcp_server
+python3 -m assistant.tests.test_eval_harness
 ```
 
 | Test | Expected (as of commit on 2026-11-25) |
@@ -40,6 +42,8 @@ python3 -m assistant.tests.test_agent_loop
 | test_engine_parity | `empty 60/60`, `mid-auction 60/60`, `punt FT 60/60`, `PASS` |
 | test_tools | `73/73 passed` |
 | test_agent_loop | `PASS` |
+| test_mcp_server | `16/16 passed` |
+| test_eval_harness | `6/6 passed` |
 
 Any difference is a bug. Report the failing line.
 
@@ -66,7 +70,21 @@ For each, check:
 - [ ] `latest_injury_report` finds today's or a recent official PDF on a game day, and the parsed rows look
       right against the PDF (check 5 rows by hand: player, team, status, reason)
 
-## Part C: scored evaluation (needs ANTHROPIC_API_KEY)
+## No API key? Use a Claude subscription for Parts C and D
+
+Install Claude Code (`claude` CLI) and sign in with a Claude subscription, then add `--backend claude-code
+--model sonnet` to the Part C command, and run Part D automatically:
+
+```bash
+python3 -m assistant.eval.run_eval --backend claude-code --model sonnet
+python3 -m assistant.eval.run_conversations --backend claude-code --model sonnet --runs 3
+```
+
+`run_conversations` runs Muse's Part D scripts (`eval/conversations.jsonl`) with the expected values Muse
+verified, including state checks after record/undo/punt. Report the 3 summaries and every failing turn
+(the JSON results file has each answer). Baseline: `eval/RESULTS.md`.
+
+## Part C: scored evaluation (needs ANTHROPIC_API_KEY, or the subscription route above)
 
 ```bash
 python3 -m assistant.eval.run_eval            # 25 questions; add --skip-live if there's no network
