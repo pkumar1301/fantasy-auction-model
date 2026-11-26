@@ -45,7 +45,8 @@ MONEY_KEYS = ("live", "base", "my_max", "price", "budget_left", "max_single_bid"
 def numbers_in(payload):
     """Dollar values in the tool outputs: only fields that hold money, not z-scores, games or ranks."""
     pat = r'"(?:' + "|".join(MONEY_KEYS) + r')":\s*(-?\d+(?:\.\d+)?)'
-    return {abs(round(float(x))) for x in re.findall(pat, payload)}
+    in_text = re.findall(r"\$(\d+)", payload)        # $ figures written inside tool text (e.g. a verdict)
+    return {abs(round(float(x))) for x in re.findall(pat, payload)} | {int(x) for x in in_text}
 
 
 def named_players(text, names):

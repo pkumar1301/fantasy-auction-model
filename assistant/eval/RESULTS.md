@@ -1,5 +1,20 @@
 # Evaluation results
 
+## 2026-11-25 (evening): 3 runs each, commit 2907dca (before the round-2 fixes)
+
+Same setup as below (Claude Code on a subscription, `sonnet`, mid-auction state, live items skipped).
+
+| Set | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| 24 questions: right_tool / dollars_ok / names_ok / top_pick / refusal_ok | 24/24 · 24/24 · 24/24 · 8/8 · 1/1 | same | same |
+| 10 conversations (Part D) | 8/10 | 10/10 | 10/10 |
+
+Run 1 misses: D1 turn 1 "about $11 per spot" (the agent divided $90 by 8 itself: a real but minor
+rule-1 break, the only one in 72 questions and 30 conversations); D5c "$83" quoted from bid_check's verdict
+text, which the scorer didn't count as a tool figure (scorer fixed: $ figures inside tool text now count).
+Tokens per conversation run about 0.65M in / 7.9k out; Claude Code's estimate was about $0.48 per run.
+These sets were used while tuning, so they aren't an independent measure; Muse's unseen set is.
+
 ## 2026-11-25: first runs with Claude (Claude Code on a subscription, model alias `sonnet`)
 
 Backend: `--backend claude-code` (Claude Code 2.1.332 in print mode, MCP server, built-in tools off, system
