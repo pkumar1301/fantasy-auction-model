@@ -76,8 +76,9 @@ def main():
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--only")
     ap.add_argument("--skip-live", action="store_true", help="skip conversations that need live news sites")
+    ap.add_argument("--file", default=str(HERE / "conversations.jsonl"), help="conversation set (JSONL)")
     a = ap.parse_args()
-    convs = [json.loads(l) for l in (HERE / "conversations.jsonl").read_text().splitlines() if l.strip()]
+    convs = [json.loads(l) for l in Path(a.file).read_text().splitlines() if l.strip()]
     if a.only:
         keep = set(a.only.split(","))
         convs = [c for c in convs if c["id"] in keep]

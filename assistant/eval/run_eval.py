@@ -4,6 +4,7 @@
   python3 -m assistant.eval.run_eval --backend claude-code   same, on a Claude subscription (no API key)
   python3 -m assistant.eval.run_eval --skip-live  skip questions that need live news feeds
   python3 -m assistant.eval.run_eval --only w01,w07
+  python3 -m assistant.eval.run_eval --file my_questions.jsonl --runs 3
 
 Every question starts from the same mid-auction state (assistant/eval/mid_auction_state.json: 14 sales,
 my team has Maxey $62 and Murray $48). Checks per answer:
@@ -55,12 +56,14 @@ def named_players(text, names):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-live", action="store_true")
+    ap.add_argument("--file", default=str(HERE / "questions.jsonl"), help="question set (JSONL)")
+    ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--only")
     ap.add_argument("--model")
     ap.add_argument("--backend", default="api", choices=["api", "claude-code"],
                     help="api = Claude API key; claude-code = Claude subscription via the MCP server")
     a = ap.parse_args()
-    qs = [json.loads(l) for l in (HERE / "questions.jsonl").read_text().splitlines() if l.strip()]
+    qs = [json.loads(l) for l in Path(a.file).read_text().splitlines() if l.strip()]
     if a.only:
         keep = set(a.only.split(","))
         qs = [q for q in qs if q["id"] in keep]
@@ -71,7 +74,7 @@ def main():
     all_names = [p["name"] for p in data["players"]]
     rows, tok_in, tok_out = [], 0, 0
     backend = make_backend(a.backend, a.model)
-    for q in qs:
+    for run, q in [(r, q) for r in range(1, a.runs + 1) for q in qs]:
         try:
             ref = Toolbox(Board(data, state)).call(q["tool"], q["ref"])
         except Exception as e:
@@ -86,7 +89,7 @@ def main():
         outs = " ".join(c.get("output", "") for c in r["tool_calls"])
         nums = numbers_in(outs) | {int(x) for x in re.findall(r"\$\s?(\d{1,3})", q["q"])}
         ans = r["answer"]
-        row = {"id": q["id"], "question": q["q"], "tools": "|".join(str(c["tool"]) for c in r["tool_calls"]),
+        row = {"run": run, "id": q["id"], "question": q["q"], "tools": "|".join(str(c["tool"]) for c in r["tool_calls"]),
                "right_tool": any(c["tool"] == q["tool"] for c in r["tool_calls"])}
         bad_d = [d for d in dollars(ans) if not any(abs(d - n) <= 1 for n in nums)]
         row["dollars_ok"] = not bad_d
@@ -104,17 +107,19 @@ def main():
                    seconds=r["seconds"])
         rows.append(row)
         flags = {k: v for k, v in row.items() if k in ("right_tool", "dollars_ok", "names_ok", "top_pick", "refusal_ok")}
-        print(q["id"], " ".join(f"{k}={'Y' if v else 'N'}" for k, v in flags.items()))
+        print(f"run {run}", q["id"], " ".join(f"{k}={'Y' if v else 'N'}" for k, v in flags.items()))
     out = HERE / f"results_{datetime.now():%Y%m%d_%H%M%S}.csv"
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=sorted({k for r in rows for k in r}))
         w.writeheader()
         w.writerows(rows)
-    print("\nSummary over", len(rows), "questions")
-    for k in ("right_tool", "dollars_ok", "names_ok", "top_pick", "refusal_ok"):
-        vals = [r[k] for r in rows if k in r]
-        if vals:
-            print(f"  {k:11s} {sum(vals)}/{len(vals)}")
+    for run in range(1, a.runs + 1):
+        rr = [r for r in rows if r["run"] == run]
+        print(f"\nRun {run}: summary over", len(rr), "questions")
+        for k in ("right_tool", "dollars_ok", "names_ok", "top_pick", "refusal_ok"):
+            vals = [r[k] for r in rr if k in r]
+            if vals:
+                print(f"  {k:11s} {sum(vals)}/{len(vals)}")
     print(f"  tokens      {tok_in:,} in / {tok_out:,} out")
     print("Saved", out)
 
