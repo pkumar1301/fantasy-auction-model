@@ -76,6 +76,28 @@ python3 -m assistant.eval.run_conversations --backend claude-code --model sonnet
 
 Results so far: `assistant/eval/RESULTS.md`.
 
+## Browser version (share a link, no install, no API key)
+
+`assistant/web/` is the same assistant as a published Claude page. The tools run in the visitor's
+browser (`gm_core.js`, a JavaScript port of the engine, the what-if tools and the offline news tools), and
+Claude does the reasoning through the page's own access to Claude, so **each question uses the visitor's own
+Claude usage**. Visitors must be signed in to Claude, and Claude asks them once to allow it.
+
+* **What it can do:** all what-if tools, `injury_history` (precomputed for the 190 board players with
+  history), and `news_impact` on news text the visitor pastes in.
+* **What it can't do:** live news. A published page can't reach other websites, so `rss_news`,
+  `latest_injury_report` and `search_news` aren't there.
+* **Where state lives:** recorded sales stay in that visitor's browser.
+
+```bash
+python3 -m assistant.web.build_data     # gm_data.json: board, injury tables, injury histories (about 1 min)
+python3 -m assistant.web.parity_test    # JS tools = Python tools: 177 cases, 203 tool calls, every field
+python3 -m assistant.web.build_page     # dist/index.html + dist/gm_data.json, ready to publish
+```
+
+Re-run all three after changing the engine, the tools or the data, so the page never drifts from the
+Python. Published at https://claude.ai/artifact/WFdpfcj1UwrHqXnNSYt88j (private until shared).
+
 ## How it works
 
 ```

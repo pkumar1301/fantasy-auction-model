@@ -22,3 +22,4 @@ logs/
 assistant/eval/results_*.csv
 auction-state.json
 assistant/eval/conv_results_*.json
+assistant/web/dist/

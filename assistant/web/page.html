@@ -1,0 +1,414 @@
+<title>Fantasy GM Assistant</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+/* Layout: a draft-room console. Left rail = my team's ledger (budget, spots, category standings),
+   right = the conversation with the assistant. Stacks to one column on phones. */
+:root {
+  --bg: #f6f4f1;          /* scorer's-table paper */
+  --panel: #ffffff;
+  --ink: #1b2330;         /* deep navy ink */
+  --muted: #5d6675;
+  --line: #e2ddd6;
+  --accent: #d4621f;      /* ball orange */
+  --accent-ink: #ffffff;
+  --accent-soft: #fbe9dd;
+  --good: #2f7d4f;
+  --warn: #b7791f;
+  --bad: #b23b3b;
+  --bubble: #eef1f5;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --panel: #1a2029; --ink: #e8ebf0; --muted: #9aa4b2; --line: #2a323e;
+    --accent: #f08a46; --accent-ink: #1b1007; --accent-soft: #3a2416; --good: #5cbf85; --warn: #e0a84a; --bad: #e07070;
+    --bubble: #222a35; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --panel: #1a2029; --ink: #e8ebf0; --muted: #9aa4b2; --line: #2a323e;
+  --accent: #f08a46; --accent-ink: #1b1007; --accent-soft: #3a2416; --good: #5cbf85; --warn: #e0a84a; --bad: #e07070;
+  --bubble: #222a35; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.app { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); grid-template-areas: "brand chat" "ledger chat";
+  grid-template-rows: auto 1fr; gap: 14px 20px; max-width: 1180px; margin: 0 auto;
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  min-height: 100%; }
+.top { grid-area: brand; min-width: 0; } .ledger { grid-area: ledger; } .chat { grid-area: chat; }
+@media (max-width: 820px) { .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "brand" "chat" "ledger"; grid-template-rows: auto; }
+  .chat { min-height: 70vh; } }
+
+/* ---------- ledger (left rail) */
+.ledger { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: 0.01em; margin: 0; line-height: 1; text-wrap: balance; }
+.brand .ball { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); flex: none; align-self: center;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 35%, transparent); }
+.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.label { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
+.money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.money div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.money b { font-family: var(--display); font-size: 26px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.money span { font-size: 12px; color: var(--muted); }
+.proj { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); gap: 8px; flex-wrap: wrap; }
+.proj b { font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; }
+.proj span { font-size: 12.5px; color: var(--muted); }
+.cats { display: grid; gap: 5px; }
+.cat { display: grid; grid-template-columns: 38px minmax(0, 1fr) 34px; align-items: center; gap: 8px; font-size: 12.5px; }
+.cat .k { font-family: var(--mono); color: var(--muted); }
+.cat .bar { height: 8px; background: var(--bubble); border-radius: 4px; overflow: hidden; }
+.cat .bar i { display: block; height: 100%; background: var(--ink); opacity: 0.75; border-radius: 4px; }
+.cat.weak .bar i { background: var(--bad); opacity: 0.85; }
+.cat.strong .bar i { background: var(--good); opacity: 0.9; }
+.cat.punt .k, .cat.punt .v { text-decoration: line-through; opacity: 0.6; }
+.cat .v { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.roster li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; font-size: 13.5px; align-items: baseline; }
+.roster .pos { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.roster .px { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.roster .empty { color: var(--muted); font-size: 13px; }
+.need { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; cursor: pointer; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .chip:focus-visible, .send:focus-visible, textarea:focus-visible, .toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.toggle input { accent-color: var(--accent); }
+.note { font-size: 12px; color: var(--muted); }
+.example-tag { display: inline-block; font-size: 11px; font-family: var(--mono); background: var(--accent-soft); color: var(--ink); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+
+/* ---------- conversation (right) */
+.chat { display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-height: 560px; }
+.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.chat-head h2 { margin: 0; font-family: var(--display); font-size: 18px; font-weight: 600; letter-spacing: 0.02em; }
+.log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-height: 300px; }
+.msg { max-width: 92%; min-width: 0; }
+.msg.user { align-self: flex-end; background: var(--ink); color: var(--panel); padding: 9px 13px; border-radius: 12px 12px 3px 12px; white-space: pre-wrap; }
+.msg.bot { align-self: flex-start; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.step { font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: var(--bubble); border-radius: 5px; padding: 2px 7px; }
+.step.err { color: var(--bad); }
+.answer { background: var(--bubble); padding: 10px 14px; border-radius: 12px 12px 12px 3px; overflow-x: auto; }
+.answer p { margin: 0 0 8px; } .answer p:last-child { margin-bottom: 0; }
+.answer ul, .answer ol { margin: 4px 0 8px; padding-left: 20px; }
+.answer table { border-collapse: collapse; font-size: 13px; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.answer th, .answer td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+.answer th { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; color: var(--muted); }
+.answer code { font-family: var(--mono); font-size: 12.5px; }
+.thinking { color: var(--muted); font-style: italic; }
+.problem { color: var(--bad); font-size: 13px; margin-top: 6px; }
+.intro { color: var(--muted); font-size: 14px; display: grid; gap: 10px; }
+.intro p { margin: 0; max-width: 62ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 13px; text-align: left; }
+.chip:hover { border-color: var(--accent); }
+.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: flex-end; }
+textarea { flex: 1; min-width: 0; resize: none; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-height: 44px; max-height: 160px; }
+.send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 0 16px; height: 44px; font-weight: 600; }
+.send[disabled] { opacity: 0.5; cursor: default; }
+.send.stop { background: var(--ink); color: var(--panel); }
+.banner { margin: 12px 16px 0; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13.5px; }
+@media (prefers-reduced-motion: no-preference) { .msg { animation: rise 160ms ease-out; } @keyframes rise { from { transform: translateY(4px); opacity: 0.6; } } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="ball" aria-hidden="true"></span><h1>Fantasy GM Assistant</h1></div>
+    <p class="sub">14-team, 9-category roto auction · $200 budget · 10 spots</p>
+  </header>
+  <aside class="ledger" aria-label="My team">
+    <section class="card" aria-labelledby="l-money">
+      <p class="label" id="l-money">My budget <span class="example-tag" id="exampleTag" hidden>sample draft</span></p>
+      <div class="money">
+        <div><b id="mLeft">–</b><span>left</span></div>
+        <div><b id="mSpots">–</b><span>open spots</span></div>
+        <div><b id="mMax">–</b><span>max single bid</span></div>
+      </div>
+      <div class="proj"><b id="mPts">–</b><span id="mRank"></span></div>
+    </section>
+    <section class="card" aria-labelledby="l-cats">
+      <p class="label" id="l-cats">Expected roto points by category (of 14)</p>
+      <div class="cats" id="cats"></div>
+    </section>
+    <section class="card" aria-labelledby="l-roster">
+      <p class="label" id="l-roster">My roster</p>
+      <ul class="roster" id="roster"></ul>
+      <p class="need" id="need"></p>
+    </section>
+    <section class="card" aria-labelledby="l-board">
+      <p class="label" id="l-board">Draft board</p>
+      <p class="note" id="salesNote" style="margin:0 0 10px"></p>
+      <div class="controls">
+        <button class="btn" id="bSample" type="button">Load sample draft</button>
+        <button class="btn" id="bEmpty" type="button">Start empty draft</button>
+      </div>
+      <p class="note" style="margin:10px 0 0">Sales you record in the chat are saved in this browser only.</p>
+    </section>
+  </aside>
+
+  <main class="chat" aria-label="Chat with the assistant">
+    <div class="chat-head">
+      <h2>Ask about bids, targets, punts or injury news</h2>
+      <div class="controls">
+        <label class="toggle"><input type="checkbox" id="fast"><span>Fast answers</span></label>
+        <button class="btn" id="bNew" type="button">New chat</button>
+      </div>
+    </div>
+    <div class="banner" id="banner" hidden></div>
+    <div class="log" id="log" aria-live="polite">
+      <div class="intro" id="intro">
+        <p>Every price, max bid and roto number comes from the team's auction model, which runs in this page. Claude decides which numbers to look up and explains them. Live news isn't searched here: paste the headline or injury note and it re-values the player.</p>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+    <form class="composer" id="form">
+      <label for="q" hidden>Your question</label>
+      <textarea id="q" rows="1" placeholder="Ask about a player, a bid or a punt"></textarea>
+      <button class="send" id="send" type="submit">Ask</button>
+    </form>
+  </main>
+</div>
+
+<script>
+/*GM_CORE*/
+</script>
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const SAVE_KEY = "gm-assistant-state-v1";
+  const SAMPLE_SALES = [["Nikola Jokic",1,98],["Shai Gilgeous-Alexander",2,90],["Victor Wembanyama",3,85],["Luka Doncic",4,80],
+    ["Tyrese Maxey",0,62],["Anthony Edwards",5,60],["Donovan Mitchell",6,55],["Scottie Barnes",7,52],["Kawhi Leonard",8,40],
+    ["Jamal Murray",0,48],["Jalen Johnson",9,47],["Karl-Anthony Towns",10,45],["Cooper Flagg",11,41],["Chet Holmgren",12,44]];
+  const sampleState = () => ({ me: 0, sales: SAMPLE_SALES.map(([player, team, price]) => ({ player, team, price })) });
+  const EXAMPLES = [
+    "What's my situation?",
+    "Who should I target if I have $40 left, I'm weak in 3-pointers and only have a PF spot open?",
+    "Trey Murphy III is up at $40. Keep bidding?",
+    "What happens if I punt FT%?",
+    "OG Anunoby: left calf strain, out 2-3 weeks. What's he worth to me now?",
+    "Any injury history I should worry about with Tyrese Haliburton?",
+  ];
+  const MUTATING = new Set(["record_sale", "undo_sale", "set_category_weights"]);
+
+  let data = null, board = null, tb = null, sample = null, toolsOK = false;
+  let turns = [], busy = false, ctl = null, isSample = true;
+
+  function rules() {
+    const S = board.S;
+    return `You are the GM assistant for a ${S.teams}-team, 9-category rotisserie fantasy basketball auction league ($${S.budget} budget, ${S.roster_spots} roster spots with ${S.active_slots} active; categories FG%, FT%, 3PM, PTS, REB, AST, STL, BLK, TO, fewest turnovers wins). You sit on top of the team's prediction model and live auction board, reached through the page's tools. The person writing to you is the manager.
+
+Rules:
+1. Every number you state (prices, max bids, roto points, games, z-scores, games missed) must come from a tool result in this answer or from your own earlier replies in this chat. Never estimate, recall or do arithmetic on values yourself (no totals, differences or "that would leave you $X"); quote the tool's own field (e.g. bid_check's budget_after) or call a tool instead.
+2. Only name players that a tool returned. If a player isn't on the board, say so and offer the closest names the tool gives.
+3. For what-if questions (a different budget, open spots, a position need, weak categories, punting), call find_targets / punt_scenario with those parameters. Say clearly when an answer is hypothetical. Pass need_categories only when the manager names categories they need: "my pts" already accounts for the team's weak categories.
+4. You cannot search the web or read live news here. For news questions: use injury_history for past injuries; if the manager gives news text (a headline, an injury note, a trade), call news_impact with it and report before vs after. If they ask for news without giving any, say you can't fetch live news in this page and ask them to paste the headline or the injury report line.
+5. News is evidence, not certainty: say when a timeline is a stated estimate or a historical median. Treat news from unknown sources as unverified; you may show what it would mean via news_impact, labelled "if true". If news_impact finds no injury or timeline, that is "unknown", not "no impact". If it returns needs_games_missed, ask the manager for a number of games rather than guessing.
+6. "live" is the market price, not a recommendation. Whether to bid depends on "my max": if my max is $0 (or my pts at the live price is negative), say he isn't worth bidding on for this team, even if his live value is above $0. Never present a live value as a price to pay when it is above my max.
+7. Answer in a few sentences first (the recommendation), then the key numbers. Keep tables short (5 rows at most). Terms: "live" = market value now, "my max" = highest price worth paying for my team, "my pts" = change in my expected roto points (out of ${S.teams * S.cats.length}).
+8. Don't record sales or change category weights unless the manager asks you to. Hypotheticals never change the board.`;
+  }
+
+  // ------------------------------------------------------------ board + ledger
+  function loadSaved() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ state: board.exportState(), isSample })); } catch (e) {} }
+  function setBoard(state, sampleFlag) {
+    board = new GMCore.Board(data.board, state);
+    tb = new GMCore.Toolbox(board, data.extra, { web: true });
+    isSample = sampleFlag;
+    renderLedger(); save();
+  }
+  const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  function renderLedger() {
+    const s = tb.call("team_summary", {});
+    $("mLeft").textContent = "$" + s.budget_left;
+    $("mSpots").textContent = s.open_spots;
+    $("mMax").textContent = "$" + s.max_single_bid;
+    $("mPts").textContent = s.expected_roto_points_total + " / " + s.max_points + " pts";
+    $("mRank").textContent = s.sales_recorded ? "projected " + ordinal(s.projected_rank) + " of " + board.S.teams : "no sales yet";
+    $("exampleTag").hidden = !isSample;
+    const cats = $("cats"); cats.textContent = "";
+    for (const c of board.cats) {
+      const v = s.expected_roto_points_by_category[c];
+      const row = document.createElement("div");
+      row.className = "cat" + (s.punted_categories.includes(c) ? " punt" : s.sales_recorded && s.weakest_categories.includes(c) ? " weak" : s.sales_recorded && s.strongest_categories.includes(c) ? " strong" : "");
+      const k = document.createElement("span"); k.className = "k"; k.textContent = c === "FG" || c === "FT" ? c + "%" : c;
+      const bar = document.createElement("span"); bar.className = "bar";
+      const fill = document.createElement("i"); fill.style.width = Math.max(0, Math.min(100, (v / board.S.teams) * 100)) + "%";
+      bar.appendChild(fill);
+      const val = document.createElement("span"); val.className = "v"; val.textContent = v.toFixed(1);
+      row.append(k, bar, val); cats.appendChild(row);
+    }
+    const ul = $("roster"); ul.textContent = "";
+    if (!s.roster.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No players yet."; ul.appendChild(li); }
+    for (const r of s.roster) {
+      const li = document.createElement("li");
+      const n = document.createElement("span"); n.textContent = r.name;
+      const p = document.createElement("span"); p.className = "pos"; p.textContent = r.pos;
+      const x = document.createElement("span"); x.className = "px"; x.textContent = "$" + r.price;
+      li.append(n, p, x); ul.appendChild(li);
+    }
+    $("need").textContent = s.positions_not_covered.length ? "Positions not covered: " + s.positions_not_covered.join(", ") : "All five positions covered.";
+    $("salesNote").textContent = s.sales_recorded + " sales recorded across the league · $" + s.league_money_left + " left in the room for " + s.league_spots_left + " spots";
+  }
+
+  // ------------------------------------------------------------ chat
+  function addUser(text) { const d = document.createElement("div"); d.className = "msg user"; d.textContent = text; $("log").appendChild(d); scroll(); }
+  function addBot() {
+    const d = document.createElement("div"); d.className = "msg bot";
+    const steps = document.createElement("div"); steps.className = "steps";
+    const ans = document.createElement("div"); ans.className = "answer";
+    const t = document.createElement("span"); t.className = "thinking"; t.textContent = "Thinking...";
+    ans.appendChild(t); d.append(steps, ans); $("log").appendChild(d); scroll();
+    return { steps, ans };
+  }
+  function scroll() { const l = $("log"); l.scrollTop = l.scrollHeight; }
+  const esc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  function miniMarkdown(text) {
+    const lines = text.split("\n"), out = [];
+    for (let i = 0; i < lines.length;) {
+      const l = lines[i];
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+        const cells = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
+        let h = "<table><thead><tr>" + cells(l).map(c => "<th>" + c + "</th>").join("") + "</tr></thead><tbody>";
+        i += 2;
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { h += "<tr>" + cells(lines[i]).map(c => "<td>" + c + "</td>").join("") + "</tr>"; i++; }
+        out.push(h + "</tbody></table>"); continue;
+      }
+      if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+        const ordered = /^\s*\d+\./.test(l); let h = ordered ? "<ol>" : "<ul>";
+        while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) { h += "<li>" + inline(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, "")) + "</li>"; i++; }
+        out.push(h + (ordered ? "</ol>" : "</ul>")); continue;
+      }
+      if (/^#{1,6}\s/.test(l)) { out.push("<p><strong>" + inline(l.replace(/^#+\s*/, "")) + "</strong></p>"); i++; continue; }
+      if (!l.trim()) { i++; continue; }
+      let para = [];
+      while (i < lines.length && lines[i].trim() && !/^\s*\|/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s+/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i])) { para.push(inline(lines[i])); i++; }
+      out.push("<p>" + para.join("<br>") + "</p>");
+    }
+    return out.join("");
+  }
+  function renderMarkdown(el, text) {
+    if (!(window.marked && window.DOMPurify)) { el.innerHTML = miniMarkdown(text); return; }
+    if (window.marked && window.DOMPurify) {
+      el.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: false }));
+      el.querySelectorAll("a").forEach(a => { if (!/^https:\/\//.test(a.getAttribute("href") || "")) a.removeAttribute("href"); else a.target = "_blank"; });
+    } else el.textContent = text;
+  }
+  function describeStep(name, input) {
+    const bits = [];
+    for (const [k, v] of Object.entries(input || {})) {
+      if (v === null || v === undefined || v === "") continue;
+      bits.push(Array.isArray(v) ? v.join("+") : typeof v === "object" ? Object.entries(v).map(e => e.join("=")).join(",") : String(v));
+    }
+    const s = name.replace(/_/g, " ") + (bits.length ? ": " + bits.join(", ") : "");
+    return s.length > 70 ? s.slice(0, 69) + "…" : s;
+  }
+  const ERRORS = {
+    not_granted: "Claude isn't allowed for this page. Allow it when asked, or check the page's permissions.",
+    sampling_disabled: "Claude isn't available for this account here.",
+    rate_limited: "Too many questions at once, or your Claude usage limit was reached. Wait a moment and try again.",
+    session_expired: "You've been signed out of Claude. Sign in again and retry.",
+    refused: "Claude declined that question. Try rephrasing it.",
+    empty_completion: "No answer came back. Try a simpler question.",
+    prompt_too_large: "This chat is too long now. Start a new chat.",
+    tools_unavailable: "This view can't run the assistant's tools. Open the page on claude.ai in a browser or the desktop app.",
+    upstream_error: "The connection dropped. Try again.",
+  };
+
+  async function ask(q) {
+    if (busy || !q.trim()) return;
+    if (!sample || !toolsOK) { showBanner(sample ? ERRORS.tools_unavailable : "The chat needs Claude: open this page on claude.ai while signed in."); return; }
+    $("intro").hidden = true;
+    busy = true; setSend(true);
+    turns.push({ role: "user", content: q });
+    if (turns.length > 16) turns = turns.slice(-16);
+    if (turns[0].role !== "user") turns.shift();
+    addUser(q);
+    const ui = addBot();
+    ctl = new AbortController();
+    const tools = GMCore.TOOL_SPECS.map(spec => ({
+      name: spec.name, description: spec.description, inputSchema: spec.inputSchema,
+      execute: async (input) => {
+        const chip = document.createElement("span"); chip.className = "step"; chip.textContent = describeStep(spec.name, input);
+        ui.steps.appendChild(chip); scroll();
+        try {
+          const r = tb.call(spec.name, input || {});
+          if (MUTATING.has(spec.name)) { isSample = false; renderLedger(); save(); }
+          return r;
+        } catch (e) { chip.classList.add("err"); throw new Error(e.message); }
+      },
+    }));
+    try {
+      const res = await sample([{ role: "user", content: rules() }, ...turns], {
+        tools, signal: ctl.signal, modelTier: $("fast").checked ? "quick" : "default",
+        onText: ({ text }) => { renderMarkdown(ui.ans, text); scroll(); },
+      });
+      renderMarkdown(ui.ans, res.text);
+      if (res.truncated) { const p = document.createElement("p"); p.className = "problem"; p.textContent = "The answer was cut short. Ask for less at a time."; ui.ans.appendChild(p); }
+      turns.push({ role: "assistant", content: res.text });
+    } catch (e) {
+      if (e && e.text) renderMarkdown(ui.ans, e.text); else ui.ans.textContent = "";
+      if (!e || e.code !== "cancelled") {
+        const p = document.createElement("p"); p.className = "problem"; p.textContent = ERRORS[e && e.code] || ERRORS.upstream_error; ui.ans.appendChild(p);
+      } else if (!e.text) ui.ans.textContent = "Stopped.";
+      if (e && e.text) turns.push({ role: "assistant", content: e.text });
+      if (e && (e.code === "not_granted" || e.code === "sampling_disabled" || e.code === "tools_unavailable")) { toolsOK = false; showBanner(ERRORS[e.code]); }
+    } finally { busy = false; ctl = null; setSend(false); scroll(); }
+  }
+  function setSend(on) { const b = $("send"); b.textContent = on ? "Stop" : "Ask"; b.classList.toggle("stop", on); }
+  function showBanner(t) { const b = $("banner"); b.textContent = t; b.hidden = false; }
+
+  // ------------------------------------------------------------ wiring
+  $("form").addEventListener("submit", e => {
+    e.preventDefault();
+    if (busy) { ctl && ctl.abort(); return; }
+    const q = $("q").value; $("q").value = ""; autosize(); ask(q);
+  });
+  $("q").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); } });
+  const autosize = () => { const t = $("q"); t.style.height = "auto"; t.style.height = Math.min(160, t.scrollHeight) + "px"; };
+  $("q").addEventListener("input", autosize);
+  $("bNew").addEventListener("click", () => { if (busy) return; turns = []; const log = $("log"); [...log.querySelectorAll(".msg")].forEach(m => m.remove()); $("intro").hidden = false; });
+  $("bSample").addEventListener("click", () => { if (!busy) setBoard(sampleState(), true); });
+  $("bEmpty").addEventListener("click", () => { if (!busy) setBoard({ me: 0, sales: [] }, false); });
+  for (const ex of EXAMPLES) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = ex;
+    b.addEventListener("click", () => ask(ex)); $("chips").appendChild(b);
+  }
+
+  async function start() {
+    try {
+      const r = await fetch("gm_data.json");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      data = await r.json();
+    } catch (e) { showBanner("Couldn't load the player data. Reload the page."); return; }
+    const saved = loadSaved();
+    try { if (saved && saved.state) setBoard(saved.state, !!saved.isSample); else setBoard(sampleState(), true); }
+    catch (e) { setBoard(sampleState(), true); }
+    if (window.claude && window.claude.use) {
+      try {
+        sample = await window.claude.use("sample");
+        if (sample) {
+          toolsOK = true;                       // try; a real tools_unavailable rejection explains itself
+          const lim = await sample.limits().catch(() => null);
+          if (lim && lim.tools === undefined && lim.maxPromptBytes) showBanner("This Claude app may not support the assistant's tools. If questions fail, open the page on claude.ai in a browser.");
+        }
+        else showBanner("The chat needs Claude: open this page on claude.ai while signed in. The ledger still works.");
+      } catch (e) { showBanner("The chat needs Claude: open this page on claude.ai while signed in."); }
+    } else showBanner("The chat needs Claude: open this page on claude.ai while signed in. The ledger still works.");
+  }
+  start();
+})();
+</script>
