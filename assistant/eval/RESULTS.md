@@ -1,5 +1,9 @@
 # Evaluation results
 
+**Note on independence:** every result below comes from question sets the developer also used while fixing
+bugs, so they measure regressions, not unseen performance. An unseen set written by the test agent (Muse)
+exists but wasn't run before release. Say this when quoting these numbers.
+
 ## 2026-11-25 (late): check run after merging the round-2 fixes (commit 4e65f36)
 
 1 run each, same setup. 24 questions: right_tool 24/24, dollars_ok 24/24, names_ok 24/24, top_pick 8/8,
